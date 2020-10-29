@@ -101,7 +101,7 @@ import           Data.Functor.Compose
 import           Data.Functor.Const
 import           Data.Functor.Identity
 import           Data.Functor.Product
-import           Data.Generics.Product.Fields (HasField(..), HasField'(..))
+--import           Data.Generics.Product.Fields (HasField(..), HasField'(..))
 import           Data.Hashable
 import           Data.HashMap.Lazy            (HashMap)
 import qualified Data.HashMap.Lazy            as M
@@ -812,7 +812,7 @@ type ToNativeGeneral t ρ = (G.Generic t, ToNativeGeneralG (G.Rep t) ρ)
 toNativeGeneral :: ToNativeGeneral t ρ => Rec ρ -> t
 toNativeGeneral = G.to . toNativeGeneral'
 
-
+{-
 {--------------------------------------------------------------------
   Generic-lens compatibility
 --------------------------------------------------------------------}
@@ -835,3 +835,4 @@ instance {-# OVERLAPPING #-}
   => HasField' name (Rec r) a where
   field' = focus (Label @name)
   {-# INLINE field' #-}
+-}

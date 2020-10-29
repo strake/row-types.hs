@@ -79,9 +79,9 @@ import Data.Constraint                (Constraint)
 import Data.Functor.Compose
 import Data.Functor.Identity
 import Data.Functor.Product
-import Data.Generics.Sum.Constructors (AsConstructor(..), AsConstructor'(..))
+--import Data.Generics.Sum.Constructors (AsConstructor(..), AsConstructor'(..))
 import Data.Maybe                     (fromMaybe)
-import Data.Profunctor                (Choice(..), Profunctor(..))
+import Data.Profunctor                (Lift(..), Profunctor(..))
 import Data.Proxy
 import Data.String                    (IsString)
 import Data.Text                      (Text)
@@ -170,17 +170,17 @@ focus :: forall l r r' a b p f.
   , r' .! l ≈ b
   , r' ≈ (r .- l) .\/ (l .== b)
   , Applicative f
-  , Choice p
+  , Lift (Either (Var r')) p
   ) => Label l -> p a (f b) -> p (Var r) (f (Var r'))
 focus (toKey -> l) =
-  dimap unwrap rewrap . left'
+  dimap unwrap rewrap . lift
   where
-    unwrap :: Var r -> Either a (Var r')
+    unwrap :: Var r -> Either (Var r') a
     unwrap (OneOf l' (HideType x))
-      | l == l'   = Left (unsafeCoerce x)
-      | otherwise = Right (OneOf l' (HideType x))
-    rewrap :: Either (f b) (Var r') -> f (Var r')
-    rewrap = either (fmap $ OneOf l . HideType) pure
+      | l == l'   = Right (unsafeCoerce x)
+      | otherwise = Left (OneOf l' (HideType x))
+    rewrap :: Either (Var r') (f b) -> f (Var r')
+    rewrap = either pure (fmap $ OneOf l . HideType)
 
 -- | Rename the given label.
 rename :: (KnownSymbol l, KnownSymbol l') => Label l -> Label l' -> Var r -> Var (Rename l l' r)
@@ -734,7 +734,7 @@ type FromNativeGeneral t ρ = (G.Generic t, FromNativeGeneralG (G.Rep t) ρ)
 fromNativeGeneral :: FromNativeGeneral t ρ => t -> Var ρ
 fromNativeGeneral = fromNativeGeneral' . G.from
 
-
+{-
 {--------------------------------------------------------------------
   Generic-lens compatibility
 --------------------------------------------------------------------}
@@ -759,3 +759,4 @@ instance {-# OVERLAPPING #-}
   => AsConstructor' name (Var r) a where
   _Ctor' = focus (Label @name)
   {-# INLINE _Ctor' #-}
+-}
