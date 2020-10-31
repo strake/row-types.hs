@@ -16,6 +16,7 @@
 {-# LANGUAGE TypeOperators #-}
 {-# LANGUAGE ViewPatterns #-}
 {-# LANGUAGE UndecidableInstances #-}
+{-# LANGUAGE PackageImports #-}
 -----------------------------------------------------------------------------
 -- |
 -- Module      :  Data.Row.Variants
@@ -41,6 +42,7 @@ module Data.Row.Variants
   -- * Destruction
   , impossible, trial, trial', multiTrial, view
   , restrict, split
+  , toLabels, toLabelsMap, toLabelsMap'
   -- ** Types for destruction
   , type (.!), type (.-), type (.\\), type (.==)
   -- * Native Conversion
@@ -78,6 +80,8 @@ import Data.Bifunctor (Bifunctor(..))
 import Data.Coerce
 import Data.Constraint                (Constraint)
 import Data.Functor.Compose
+import "hs-functors" Data.Functor.Contravariant ((>$<))
+import qualified "hs-functors" Data.Functor.Contravariant as Contravar
 import Data.Functor.Identity
 import Data.Functor.Product
 --import Data.Generics.Sum.Constructors (AsConstructor(..), AsConstructor'(..))
@@ -485,6 +489,26 @@ fromLabelsMap f = fromLabels @(IsA c g) @(Map g ρ) @f inner
 fromLabelsMap' :: forall c f g ρ proxy proxy' proxy''. (Alternative f, Forall ρ c, AllUniqueLabels ρ)
               => proxy c -> proxy' ρ -> proxy'' g -> (forall l a. (KnownSymbol l, c a) => Label l -> f (g a)) -> f (Var (Map g ρ))
 fromLabelsMap' _ _ _ = fromLabelsMap @c @_ @g @ρ
+
+toLabels :: forall c ρ f. (Contravar.Cozip f, Forall ρ c, AllUniqueLabels ρ)
+           => (forall l a. (KnownSymbol l, c a) => Label l -> f a) -> f (Var ρ)
+toLabels mk = getCompose $ metamorph @_ @ρ @c @(,) @_ @(Compose f Var) @Proxy Proxy doNil doUncons (\ l (x'@(Compose x), proxy) -> Compose $ Contravar.cozipWith (trial x' proxy `flip` l) x (mk l)) Proxy
+  where doNil Proxy = Compose $ impossible >$< Contravar.full
+        doUncons _ Proxy = (Proxy, Proxy)
+        trial :: KnownSymbol l => proxy r -> proxy' t -> Var (Extend l t r) -> Label l -> Either (Var r) t
+        trial _ _ (OneOf l (HideType x)) (toKey -> l') | l == l' = Right (unsafeCoerce x) | otherwise = Left (OneOf l (HideType x))
+
+toLabelsMap :: forall c f g ρ. (Contravar.Cozip f, Forall ρ c, AllUniqueLabels ρ)
+           => (forall l a. (KnownSymbol l, c a) => Label l -> f (g a)) -> f (Var (Map g ρ))
+toLabelsMap f = toLabels @(IsA c g) @(Map g ρ) @f inner
+               \\ mapForall @g @ρ @c
+               \\ uniqueMap @g @ρ
+   where inner :: forall l a. (KnownSymbol l, IsA c g a) => Label l -> f a
+         inner l = case as @c @g @a of As -> f l
+
+toLabelsMap' :: forall c f g ρ proxy proxy' proxy''. (Contravar.Cozip f, Forall ρ c, AllUniqueLabels ρ)
+           => proxy c -> proxy' ρ -> proxy'' g -> (forall l a. (KnownSymbol l, c a) => Label l -> f (g a)) -> f (Var (Map g ρ))
+toLabelsMap' _ _ _ = toLabelsMap @c @_ @g @ρ
 
 {--------------------------------------------------------------------
   Functions for variants of ApSingle
