@@ -33,7 +33,7 @@ module Data.Row.Variants
   , Var, Row, Empty, type (≈)
   -- * Construction
   , HasType, pattern IsJust, singleton, unSingleton
-  , fromLabels, fromLabelsMap
+  , fromLabels, fromLabelsMap, fromLabelsMap'
   -- ** Extension
   , type (.\), Lacks, type (.\/), diversify, extend, type (.+)
   -- ** Modification
@@ -53,6 +53,7 @@ module Data.Row.Variants
   , Map, map, map', transform, transform'
   -- ** Fold
   , Forall, erase, eraseWithLabels, eraseZipGeneral, eraseZip
+  , erase', eraseWithLabels', eraseZipGeneral', eraseZip'
   -- ** Applicative-like functions
   , traverse, traverseMap
   , sequence
@@ -227,6 +228,10 @@ restrict = either (pure Nothing) Just . split
 erase :: forall c ρ b. Forall ρ c => (forall a. c a => a -> b) -> Var ρ -> b
 erase f = snd @String . eraseWithLabels @c f
 
+-- | A standard fold
+erase' :: forall c ρ b proxy. Forall ρ c => proxy c -> (forall a. c a => a -> b) -> Var ρ -> b
+erase' _ = erase @c
+
 -- | A fold with labels
 eraseWithLabels :: forall c ρ s b. (Forall ρ c, IsString s) => (forall a. c a => a -> b) -> Var ρ -> (s,b)
 eraseWithLabels f = getConst . metamorph @_ @ρ @c @Either @Var @(Const (s,b)) @Identity Proxy impossible doUncons doCons
@@ -235,6 +240,10 @@ eraseWithLabels f = getConst . metamorph @_ @ρ @c @Either @Var @(Const (s,b)) @
                => Label ℓ -> Either (Const (s,b) ρ) (Identity τ) -> Const (s,b) (Extend ℓ τ ρ)
         doCons _ (Left  (Const c)) = Const c
         doCons l (Right (Identity x)) = Const (show' l, f x)
+
+-- | A fold with labels
+eraseWithLabels' :: forall c ρ s b proxy. (Forall ρ c, IsString s) => proxy c -> (forall a. c a => a -> b) -> Var ρ -> (s,b)
+eraseWithLabels' _ = eraseWithLabels @c
 
 
 data ErasedVal c s = forall y. c y => ErasedVal (s, y)
@@ -272,6 +281,11 @@ eraseZipGeneral f x y = getConst $ metamorph @_ @ρ @c @Either @(ErasePair c s) 
     doCons _ (Left  (Const b)) = Const b
     doCons _ (Right (Const b)) = Const b
 
+eraseZipGeneral'
+  :: forall c ρ b s proxy. (Forall ρ c, IsString s)
+  => proxy c -> (forall x y. (c x, c y) => Either (s, x, x) ((s, x), (s, y)) -> b)
+  -> Var ρ -> Var ρ -> b
+eraseZipGeneral' _ = eraseZipGeneral @c @_ @_ @s
 
 -- | A simpler fold over two variants at once
 eraseZip :: forall c ρ b. Forall ρ c => (forall a. c a => a -> a -> b) -> Var ρ -> Var ρ -> Maybe b
@@ -279,6 +293,8 @@ eraseZip f = eraseZipGeneral @c @ρ @(Maybe b) @Text $ \case
     Left (_,x,y) -> Just (f x y)
     _            -> Nothing
 
+eraseZip' :: forall c ρ b proxy. Forall ρ c => proxy c -> (forall a. c a => a -> a -> b) -> Var ρ -> Var ρ -> Maybe b
+eraseZip' _ = eraseZip @c
 
 -- | VMap is used internally as a type level lambda for defining variant maps.
 newtype VMap f ρ = VMap { unVMap :: Var (Map f ρ) }
@@ -465,6 +481,10 @@ fromLabelsMap f = fromLabels @(IsA c g) @(Map g ρ) @f inner
                \\ uniqueMap @g @ρ
    where inner :: forall l a. (KnownSymbol l, IsA c g a) => Label l -> f a
          inner l = case as @c @g @a of As -> f l
+
+fromLabelsMap' :: forall c f g ρ proxy proxy' proxy''. (Alternative f, Forall ρ c, AllUniqueLabels ρ)
+              => proxy c -> proxy' ρ -> proxy'' g -> (forall l a. (KnownSymbol l, c a) => Label l -> f (g a)) -> f (Var (Map g ρ))
+fromLabelsMap' _ _ _ = fromLabelsMap @c @_ @g @ρ
 
 {--------------------------------------------------------------------
   Functions for variants of ApSingle

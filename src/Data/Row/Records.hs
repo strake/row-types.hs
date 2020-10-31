@@ -40,7 +40,7 @@ module Data.Row.Records
   , empty
   , type (.==), (.==), pattern (:==), unSingleton
   , default', defaultA
-  , fromLabels, fromLabelsA, fromLabelsMapA
+  , fromLabels, fromLabelsA, fromLabelsMapA, fromLabelsMapA'
   -- ** Extension
   , extend, Extend, Lacks, type (.\)
   -- ** Restriction
@@ -621,6 +621,11 @@ fromLabelsMapA f = fromLabelsA @(IsA c g) @f @(Map g ρ) inner
                 \\ uniqueMap @g @ρ
    where inner :: forall l a. (KnownSymbol l, IsA c g a) => Label l -> f a
          inner l = case as @c @g @a of As -> f l
+
+fromLabelsMapA' :: forall c f g ρ proxy proxy' proxy''. (Applicative f, Forall ρ c, AllUniqueLabels ρ)
+                => proxy c -> proxy' g -> proxy'' ρ -> (forall l a. (KnownSymbol l, c a) => Label l -> f (g a)) -> f (Rec (Map g ρ))
+fromLabelsMapA' _ _ _ = fromLabelsMapA @c @f @g @ρ
+{-# INLINE fromLabelsMapA' #-}
 
 
 {--------------------------------------------------------------------
